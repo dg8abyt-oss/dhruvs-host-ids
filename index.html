@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyper-Unique UI Generator</title>
+    <style>
+        :root { --bg-body: #121212; --text-main: #e0e0e0; --accent: #7289da; }
+        
+        /* Global Box Sizing Fix */
+        * { box-sizing: border-box; }
+
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-body); color: var(--text-main); margin: 0; padding: 20px; display: flex; flex-direction: column; min-height: 100vh; }
+        
+        header { max-width: 1400px; margin: 0 auto 30px auto; text-align: center; padding: 20px; background: #1e1e1e; border-radius: 12px; border: 1px solid #333; width: 100%; }
+        h1 { margin: 0 0 10px 0; color: white; }
+        
+        .controls { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+        input, select { padding: 12px 20px; background: #2b2b2b; color: white; border: 1px solid #444; border-radius: 8px; font-size: 16px; outline: none; }
+        
+        /* Grid Layout */
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
+            gap: 40px; 
+            max-width: 1600px; 
+            margin: 0 auto; 
+            width: 100%; 
+            align-items: start;
+        }
+        
+        /* Card Wrapper */
+        .card-wrapper { 
+            position: relative; 
+            transition: transform 0.3s ease; 
+            display: flex; 
+            flex-direction: column;
+            overflow: hidden; 
+            height: auto;
+            min-height: 400px; /* Ensure space for description */
+        }
+        .card-wrapper:hover { z-index: 100; transform: scale(1.03); }
+
+        .card-desc {
+            font-size: 0.85rem;
+            margin-top: 10px;
+            margin-bottom: 15px;
+            opacity: 0.85;
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        footer { margin-top: 50px; text-align: center; padding: 20px; border-top: 1px solid #333; color: #666; font-size: 0.9rem; width: 100%; }
+
+        /* Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        .modal { background: #1e1e1e; padding: 30px; border-radius: 16px; width: 90%; max-width: 500px; border: 1px solid #444; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .modal h2 { margin-top: 0; color: white; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; color: #aaa; margin-bottom: 8px; }
+        .form-group select, .form-group input { width: 100%; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 30px; }
+        .btn-confirm { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; }
+        .btn-confirm:disabled { background: #444; cursor: not-allowed; }
+        .btn-cancel { background: transparent; color: #aaa; border: 1px solid #444; padding: 12px 24px; border-radius: 6px; cursor: pointer; }
+        .status-msg { font-size: 0.85rem; margin-top: 5px; min-height: 20px; }
+        .status-valid { color: #43b581; }
+        .status-invalid { color: #f04747; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Hyper-Unique UI Generator</h1>
+        <p>Browsing 60 procedurally generated, unique CSS compositions.</p>
+        <div class="controls">
+            <input type="text" id="searchInput" placeholder="Search (e.g., 'dark', 'dashed', 'serif')...">
+        </div>
+    </header>
+
+    <div id="grid" class="grid"></div>
+
+    <footer>
+        Created by Dhruv's Host
+    </footer>
+
+    <div id="modal" class="modal-overlay">
+        <div class="modal">
+            <h2>Customize & Claim</h2>
+            
+            <div class="form-group">
+                <label>1. Choose a Background Style</label>
+                <select id="bgChoice">
+                    <option value="default">Keep Original</option>
+                    <option value="dark-matte">Matte Black (#111)</option>
+                    <option value="glass">Glassmorphism (Blur)</option>
+                    <option value="white-paper">Clean White Paper</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>2. Choose a Font Family</label>
+                <select id="fontChoice">
+                    <option value="default">Keep Original</option>
+                    <option value="inter">Inter / Sans-Serif</option>
+                    <option value="serif">Merriweather / Serif</option>
+                    <option value="mono">Fira Code / Monospace</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>3. Verify Identity (Required)</label>
+                <input type="text" id="userIdInput" placeholder="Enter ID (e.g. 001)" autocomplete="off">
+                <div id="idStatus" class="status-msg"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn-confirm" id="confirmBtn" onclick="confirmSelection()" disabled>Send CSS</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURATION
+      const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1473031946689970372/2Oo4Hkc1WeIkEqdtPVFMJY-eYPNQ4O-AdKG5PX0rd4oQTXCZh5TUL6UHqzfTUTEIr_or';
+      const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/dg8abyt-oss/dhruvs-host-ids/refs/heads/main/ids.txt'; 
+
+        // STATE
+        let UI_DATA = [];
+        let USER_DB = {}; 
+        let currentSelection = null; 
+
+        // --- 1. INTELLIGENT DESCRIPTION ENGINE ---
+        function describeDesign(s) {
+            let traits = [];
+
+            // 1. Analyze Vibe (Dark vs Light)
+            const isDark = s.backgroundColor === '#1e1e1e' || s.backgroundColor.includes('#000');
+            traits.push(isDark ? "Dark-themed" : "Bright");
+
+            // 2. Analyze Structure (Radius)
+            const rad = parseInt(s.borderRadius);
+            if(rad === 0) traits.push("brutalist sharp edges");
+            else if(rad > 25) traits.push("soft organic curves");
+            else traits.push("balanced rounded corners");
+
+            // 3. Analyze Borders
+            if(s.borderStyle === 'dashed') traits.push("experimental dashed borders");
+            else if(s.borderStyle === 'double') traits.push("retro double-borders");
+            else if(parseInt(s.borderWidth) > 4) traits.push("heavy structural outlines");
+            else if(s.borderStyle === 'none') traits.push("clean borderless layout");
+
+            // 4. Analyze Typography
+            if(s.fontFamily.includes('Courier') || s.fontFamily.includes('Mono')) traits.push("tech-inspired monospace type");
+            else if(s.fontFamily.includes('Times') || s.fontFamily.includes('Georgia')) traits.push("classic serif typography");
+            else traits.push("modern sans-serif text");
+
+            // Combine into a sentence
+            return `A ${traits[0]} component featuring ${traits[1]}, ${traits[2]}, and ${traits[3]}.`;
+        }
+
+        // --- 2. RANDOM CSS GENERATOR ---
+        function generateChaoticCSS(index) {
+            const r = (arr) => arr[Math.floor(Math.random() * arr.length)];
+            const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
+            const randColor = () => `hsl(${randInt(0, 360)}, ${randInt(40, 90)}%, ${randInt(40, 80)}%)`;
+
+            let style = {
+                padding: `${randInt(20, 35)}px`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: `${randInt(10, 20)}px`,
+                
+                // Borders
+                borderRadius: r(['0px', '4px', '12px', '30px', '50px']),
+                borderWidth: `${randInt(0, 5)}px`,
+                borderStyle: r(['solid', 'dashed', 'double', 'none', 'dotted']),
+                borderColor: randColor(),
+                
+                // Background (Simple toggle for contrast safety)
+                backgroundColor: Math.random() > 0.5 ? '#ffffff' : '#1e1e1e',
+                color: '#333',
+                
+                // Shadows
+                boxShadow: Math.random() > 0.6 
+                    ? `0 10px 25px -5px rgba(0,0,0,0.1)` // Soft
+                    : `${randInt(4,8)}px ${randInt(4,8)}px 0px ${randColor()}`, // Hard
+                
+                // Type
+                fontFamily: r(['Arial', 'Courier New', 'Georgia', 'Verdana', 'Times New Roman', 'Trebuchet MS']),
+                textAlign: r(['left', 'center', 'left']), // Bias towards left
+                
+                // Button
+                btnBg: randColor(),
+                btnRadius: `${randInt(0, 30)}px`,
+            };
+
+            // Fix Contrast
+            if (style.backgroundColor === '#1e1e1e') {
+                style.color = '#f0f0f0';
+                if(style.borderWidth !== '0px' && parseInt(style.borderColor.split(',')[2]) < 30) {
+                     style.borderColor = '#555'; // Lighten border if too dark
+                }
+            }
+
+            return style;
+        }
+
+        // --- 3. INITIALIZATION ---
+        async function fetchUserDatabase() {
+            try {
+                const response = await fetch(GITHUB_RAW_URL);
+                if (!response.ok) throw new Error("GitHub fetch failed");
+                const text = await response.text();
+                text.split('\n').forEach(line => {
+                    if(line.includes('=')) {
+                        const [id, name] = line.split('=');
+                        if(id && name) USER_DB[id.trim()] = name.trim();
+                    }
+                });
+            } catch (err) { console.error("User DB Error:", err); }
+        }
+
+        function initGrid() {
+            const grid = document.getElementById('grid');
+            
+            for(let i=1; i<=60; i++) {
+                const style = generateChaoticCSS(i);
+                const description = describeDesign(style);
+                
+                // Store data
+                UI_DATA.push({ id: i, style: style, desc: description, title: `Variant #${i}` });
+
+                // Create Card
+                const card = document.createElement('div');
+                card.className = 'card-wrapper';
+                
+                // Apply Styles
+                Object.assign(card.style, {
+                    background: style.backgroundColor,
+                    color: style.color,
+                    padding: style.padding,
+                    borderRadius: style.borderRadius,
+                    border: `${style.borderWidth} ${style.borderStyle} ${style.borderColor}`,
+                    boxShadow: style.boxShadow,
+                    fontFamily: style.fontFamily,
+                    textAlign: style.textAlign
+                });
+
+                card.innerHTML = `
+                    <div>
+                        <div style="font-size: 1.2rem; font-weight: bold;">Unique UI ${i}</div>
+                        <div class="card-desc">${description}</div>
+                    </div>
+                    
+                    <img src="https://picsum.photos/id/${i+10}/300/150" style="width: 100%; height: auto; border-radius: 4px; object-fit: cover; margin-bottom: 15px;">
+                    
+                    <button onclick='openModal(${i})' 
+                        style="
+                            width: 100%;
+                            padding: 12px; 
+                            border: none; 
+                            cursor: pointer; 
+                            font-weight: bold;
+                            background: ${style.btnBg}; 
+                            color: white;
+                            border-radius: ${style.btnRadius};
+                            margin-top: auto;
+                        ">
+                        Select
+                    </button>
+                `;
+                grid.appendChild(card);
+            }
+        }
+
+        // --- 4. LOGIC & EVENTS ---
+        
+        // Search Filter (Now checks description too!)
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const cards = document.getElementById('grid').children;
+            UI_DATA.forEach((item, index) => {
+                const match = item.title.toLowerCase().includes(term) || 
+                              item.desc.toLowerCase().includes(term); // <--- Search matches description
+                cards[index].style.display = match ? 'flex' : 'none';
+            });
+        });
+
+        // User Validation
+        const idInput = document.getElementById('userIdInput');
+        const idStatus = document.getElementById('idStatus');
+        const confirmBtn = document.getElementById('confirmBtn');
+
+        idInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            if (USER_DB[val]) {
+                idStatus.textContent = `✅ Verified: ${USER_DB[val]}`;
+                idStatus.className = 'status-msg status-valid';
+                confirmBtn.disabled = false;
+            } else {
+                idStatus.textContent = val === '' ? '' : `❌ Invalid ID`;
+                idStatus.className = 'status-msg status-invalid';
+                confirmBtn.disabled = true;
+            }
+        });
+
+        function openModal(index) {
+            currentSelection = UI_DATA.find(item => item.id === index);
+            document.getElementById('modal').style.display = 'flex';
+            idInput.value = '';
+            idStatus.textContent = '';
+            confirmBtn.disabled = true;
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        async function confirmSelection() {
+            if(!currentSelection) return;
+
+            const userId = idInput.value.trim();
+            const userName = USER_DB[userId];
+            const bgChoice = document.getElementById('bgChoice').value;
+            const fontChoice = document.getElementById('fontChoice').value;
+
+            // Prepare Final CSS
+            let finalCSS = { ...currentSelection.style };
+            
+            if(bgChoice === 'dark-matte') { finalCSS.background = '#111'; finalCSS.color = '#fff'; }
+            if(bgChoice === 'glass') { finalCSS.background = 'rgba(255,255,255,0.1)'; finalCSS.backdropFilter = 'blur(10px)'; finalCSS.color = '#fff'; }
+            if(bgChoice === 'white-paper') { finalCSS.background = '#f9f9f9'; finalCSS.color = '#333'; }
+            
+            if(fontChoice === 'mono') finalCSS.fontFamily = 'monospace';
+            if(fontChoice === 'serif') finalCSS.fontFamily = 'serif';
+            if(fontChoice === 'inter') finalCSS.fontFamily = 'sans-serif';
+
+            // Construct Payload
+            const payload = {
+                content: `🎨 **New Selection**\nUser: **${userName}** (ID: ${userId})`,
+                embeds: [{
+                    title: `Selected: ${currentSelection.title}`,
+                    description: `**Analysis:** ${currentSelection.desc}\n\n**Generated CSS:**\n` + 
+                        "```css\n" + 
+                        JSON.stringify(finalCSS, null, 2).replace(/[{},"]/g, '').replace(/:/g, ': ') + 
+                        "\n```",
+                    color: 5763719
+                }]
+            };
+
+            // Send
+            confirmBtn.innerText = "Sending...";
+            try {
+                await fetch(DISCORD_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                alert("Thank you for using Dhruv's Host.");
+                closeModal();
+            } catch (e) {
+                alert("Error sending to Discord.");
+                console.error(e);
+            } finally {
+                confirmBtn.innerText = "Send CSS";
+            }
+        }
+
+        initGrid();
+        fetchUserDatabase();
+
+    </script>
+</body>
+</html>
